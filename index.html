@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Secure Chat</title>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<style>
+  body { font-family: Arial; background:#f5f5f5; margin:0; padding:0; display:flex; flex-direction:column; height:100vh; }
+  #chat { display:flex; flex-direction:column; max-width:600px; margin:auto; height:100vh; }
+  #chat-container { flex:1; padding:10px; overflow-y:auto; display:flex; flex-direction:column; gap:10px; }
+  .message { padding:10px 15px; border-radius:20px; max-width:70%; word-wrap:break-word; }
+  .user-message { background:#DCF8C6; align-self:flex-end; border-radius:20px 20px 3px 20px; }
+  .friend-message { background:#fff; align-self:flex-start; border-radius:20px 20px 20px 3px; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+  .input-container { display:flex; padding:10px; background:#f0f0f0; gap:10px; }
+  .input-container input { flex:1; padding:10px 15px; border-radius:20px; border:1px solid #ccc; outline:none; }
+  .input-container button { padding:10px 20px; border-radius:20px; border:none; background:#128C7E; color:white; cursor:pointer; }
+</style>
+</head>
+<body>
+
+<div id="chat">
+  <div id="chat-container"></div>
+  <div class="input-container">
+    <input type="text" id="message-input" placeholder="Type your message">
+    <button id="send-btn">Send</button>
+  </div>
+</div>
+
+<script>
+  // Firebase config
+  const firebaseConfig = {
+    apiKey: "AIzaSyD24bNk7GLLLPaFFpI-_bmfhXKWIXDiwEk",
+    authDomain: "chatcodee.firebaseapp.com",
+    databaseURL: "https://chatcodee-default-rtdb.firebaseio.com/",
+    projectId: "chatcodee",
+    storageBucket: "chatcodee.firebasestorage.app",
+    messagingSenderId: "773326415522",
+    appId: "1:773326415522:web:0dafff23ba1a111ee899fb"
+  };
+
+  // Initialize Firebase
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  const chatCode = 'Inspecting123'; // Fixed chat code
+  const userId = Date.now(); // Unique ID for this user
+  const chatContainer = document.getElementById('chat-container');
+
+  // Display message
+  function displayMessage(msg){
+    const div = document.createElement('div');
+    div.classList.add('message');
+    div.classList.add(msg.userId === userId ? 'user-message' : 'friend-message');
+    div.textContent = msg.text;
+    chatContainer.appendChild(div);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+  }
+
+  // Load messages from localStorage
+  let localChat = JSON.parse(localStorage.getItem('chat_' + chatCode)) || [];
+  localChat.forEach(displayMessage);
+
+  // Listen for new messages in Firebase
+  const chatRef = db.ref('chats/' + chatCode);
+  chatRef.on('child_added', (snapshot) => {
+    const msg = snapshot.val();
+
+    // Avoid duplicate display if already in localStorage
+    if(!localChat.find(m => m.text === msg.text && m.userId === msg.userId)){
+      displayMessage(msg);
+      localChat.push(msg);
+      localStorage.setItem('chat_' + chatCode, JSON.stringify(localChat));
+    }
+  });
+
+  // Send message
+  const messageInput = document.getElementById('message-input');
+  const sendBtn = document.getElementById('send-btn');
+
+  function sendMessage(){
+    const text = messageInput.value.trim();
+    if(!text) return;
+
+    const msg = { text, userId };
+    chatRef.push(msg);
+    messageInput.value = '';
+  }
+
+  sendBtn.addEventListener('click', sendMessage);
+  messageInput.addEventListener('keypress', (e) => {
+    if(e.key === 'Enter') sendMessage();
+  });
+</script>
+
+</body>
+</html>
