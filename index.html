@@ -3,92 +3,57 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Secure Chat</title>
+<title>ChatCode</title>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <style>
-  body {
-    font-family: Arial, sans-serif;
-    background: #e5ddd5;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-  }
-  #chat {
-    display: flex;
-    flex-direction: column;
-    max-width: 600px;
-    margin: auto;
-    height: 100vh;
-    background: #e5ddd5;
-  }
-  #chat-container {
-    flex: 1;
-    padding: 10px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .message {
-    padding: 10px 15px;
-    border-radius: 20px;
-    max-width: 75%;
-    word-wrap: break-word;
-    white-space: pre-wrap;
-    line-height: 1.4;
-    position: relative;
-  }
-  .user-message {
-    background: #dcf8c6;
-    align-self: flex-end;
-    border-radius: 18px 18px 18px 18px;
-  }
-  .friend-message {
-    background: #fff;
-    align-self: flex-start;
-    border-radius: 18px 18px 18px 18px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-  }
-  .username {
-    font-weight: bold;
-    font-size: 0.85em;
-    margin-bottom: 2px;
-  }
-  .input-container {
-    display: flex;
-    padding: 10px;
-    background: #f0f0f0;
-    gap: 10px;
-  }
-  .input-container textarea {
-    flex: 1;
-    padding: 10px 15px;
-    border-radius: 20px;
-    border: 1px solid #ccc;
-    outline: none;
-    resize: none;
-    font-family: Arial;
-  }
-  .input-container button {
-    padding: 10px 20px;
-    border-radius: 20px;
-    border: none;
-    background: #128c7e;
-    color: white;
-    cursor: pointer;
-  }
-  a {
-    color: #0645AD;
-    text-decoration: underline;
-    word-break: break-all;
-  }
+  body { margin:0; font-family: Arial; background:#e5ddd5; }
+  #top-nav { display:flex; align-items:center; justify-content:space-between; background:#075E54; color:white; padding:10px 15px; }
+  #top-nav .logo { font-weight:bold; font-size:1.2em; }
+  #top-nav .username-box { font-size:0.9em; background:rgba(255,255,255,0.2); padding:3px 8px; border-radius:5px; }
+  #top-nav button { padding:5px 10px; border:none; border-radius:5px; cursor:pointer; background:#25D366; color:white; }
+  #registration, #otp-section, #chat { display:none; max-width:600px; margin:auto; height:100vh; flex-direction:column; }
+  #registration, #otp-section { display:flex; flex-direction:column; justify-content:center; align-items:center; padding:20px; }
+  input { padding:10px; margin:5px 0; border-radius:5px; border:1px solid #ccc; width:200px; }
+  button { margin-top:10px; padding:10px 15px; border:none; border-radius:5px; cursor:pointer; background:#128C7E; color:white; }
+  #chat-container { flex:1; padding:10px; overflow-y:auto; display:flex; flex-direction:column; gap:8px; }
+  .message { padding:10px 15px; border-radius:18px; max-width:75%; word-wrap:break-word; white-space:pre-wrap; line-height:1.4; position:relative; }
+  .user-message { background:#dcf8c6; align-self:flex-end; }
+  .friend-message { background:#fff; align-self:flex-start; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+  .username { font-weight:bold; font-size:0.85em; margin-bottom:2px; }
+  .delete-btn { font-size:0.8em; cursor:pointer; color:red; position:absolute; top:2px; right:5px; display:none; }
+  .message.user-message .delete-btn { display:block; }
+  .input-container { display:flex; padding:10px; background:#f0f0f0; gap:10px; }
+  .input-container textarea { flex:1; padding:10px 15px; border-radius:20px; border:1px solid #ccc; outline:none; resize:none; font-family:Arial; }
+  a { color:#0645AD; text-decoration:underline; word-break: break-word; }
 </style>
 </head>
 <body>
 
+<div id="top-nav">
+  <div class="logo">ChatCode</div>
+  <div class="username-box" id="nav-username">User</div>
+  <button id="logout-btn">Logout</button>
+</div>
+
+<!-- Registration -->
+<div id="registration">
+  <h2>Register</h2>
+  <input type="text" id="reg-username" placeholder="Username">
+  <input type="text" id="reg-mobile" placeholder="Mobile Number">
+  <div id="recaptcha-container"></div>
+  <button id="send-otp-btn">Send OTP</button>
+</div>
+
+<!-- OTP Verification -->
+<div id="otp-section">
+  <h2>Enter OTP</h2>
+  <input type="text" id="otp-input" placeholder="6-digit OTP">
+  <button id="verify-otp-btn">Verify OTP</button>
+</div>
+
+<!-- Chat Interface -->
 <div id="chat">
   <div id="chat-container"></div>
   <div class="input-container">
@@ -108,88 +73,152 @@
     messagingSenderId: "773326415522",
     appId: "1:773326415522:web:0dafff23ba1a111ee899fb"
   };
-
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
+  const auth = firebase.auth();
 
-  const chatCode = 'Inspecting123';
+  const registrationDiv = document.getElementById('registration');
+  const otpDiv = document.getElementById('otp-section');
+  const chatDiv = document.getElementById('chat');
   const chatContainer = document.getElementById('chat-container');
-  const messageInput = document.getElementById('message-input');
-  const sendBtn = document.getElementById('send-btn');
+  const navUsername = document.getElementById('nav-username');
+  const logoutBtn = document.getElementById('logout-btn');
 
-  // Ask for username on first visit
-  let username = localStorage.getItem('username');
-  if(!username) {
-    username = prompt("Enter your username:") || "User";
-    localStorage.setItem('username', username);
+  let chatCode = 'Inspecting123';
+  let currentUserId = Date.now();
+  let username = '';
+  let mobile = '';
+  let localChat = [];
+
+  // Show registration if no user in localStorage
+  if(localStorage.getItem('user')){
+    const user = JSON.parse(localStorage.getItem('user'));
+    username = user.username;
+    mobile = user.mobile;
+    currentUserId = user.userId;
+    navUsername.textContent = `${username} [${mobile}]`;
+    showChat();
+  } else {
+    registrationDiv.style.display = 'flex';
   }
 
-  const userId = Date.now(); // unique ID for this user
+  // Initialize reCAPTCHA
+  window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
+    size: 'normal'
+  });
 
-  function linkify(text) {
-    const urlPattern = /(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig;
-    return text.replace(urlPattern, function(url) {
-      return `<a href="${url}" target="_blank">${url}</a>`;
+  // Send OTP
+  document.getElementById('send-otp-btn').addEventListener('click', () => {
+    username = document.getElementById('reg-username').value.trim();
+    mobile = document.getElementById('reg-mobile').value.trim();
+    if(!username || !mobile) return alert("Enter username & mobile");
+
+    auth.signInWithPhoneNumber("+91"+mobile, window.recaptchaVerifier)
+      .then(confirmationResult => {
+        window.confirmationResult = confirmationResult;
+        registrationDiv.style.display = 'none';
+        otpDiv.style.display = 'flex';
+      }).catch(err => alert(err));
+  });
+
+  // Verify OTP
+  document.getElementById('verify-otp-btn').addEventListener('click', () => {
+    const otp = document.getElementById('otp-input').value.trim();
+    if(!otp) return;
+    window.confirmationResult.confirm(otp).then(result => {
+      localStorage.setItem('user', JSON.stringify({username,mobile,userId:currentUserId}));
+      navUsername.textContent = `${username} [${mobile}]`;
+      otpDiv.style.display = 'none';
+      showChat();
+    }).catch(err => alert(err));
+  });
+
+  function showChat(){
+    chatDiv.style.display = 'flex';
+    // Load messages from localStorage
+    localChat = JSON.parse(localStorage.getItem('chat_' + chatCode)) || [];
+    localChat.forEach(displayMessage);
+
+    // Listen to Firebase messages
+    db.ref('chats/' + chatCode).on('child_added', snapshot => {
+      const msg = snapshot.val();
+      if(!localChat.find(m => m.text===msg.text && m.userId===msg.userId)){
+        displayMessage(msg);
+        localChat.push(msg);
+        localStorage.setItem('chat_'+chatCode, JSON.stringify(localChat));
+      }
     });
+  }
+
+  function linkify(text){
+    const urlPattern = /(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig;
+    return text.replace(urlPattern, url => `<a href="${url}" target="_blank">${url}</a>`);
   }
 
   function displayMessage(msg){
     const div = document.createElement('div');
     div.classList.add('message');
-    div.classList.add(msg.userId === userId ? 'user-message' : 'friend-message');
+    div.classList.add(msg.userId===currentUserId ? 'user-message' : 'friend-message');
 
     const usernameDiv = document.createElement('div');
     usernameDiv.classList.add('username');
-    usernameDiv.textContent = msg.username;
+    usernameDiv.textContent = `${msg.username} [${msg.mobile}]`;
     div.appendChild(usernameDiv);
 
     const textDiv = document.createElement('div');
     textDiv.innerHTML = linkify(msg.text);
     div.appendChild(textDiv);
 
+    // Delete button for own messages
+    if(msg.userId===currentUserId){
+      const delBtn = document.createElement('span');
+      delBtn.textContent='Delete';
+      delBtn.classList.add('delete-btn');
+      delBtn.onclick = () => {
+        db.ref('chats/'+chatCode+'/'+msg.key).remove();
+        div.remove();
+        localChat = localChat.filter(m => m.key!==msg.key);
+        localStorage.setItem('chat_'+chatCode, JSON.stringify(localChat));
+      }
+      div.appendChild(delBtn);
+    }
+
     chatContainer.appendChild(div);
     chatContainer.scrollTop = chatContainer.scrollHeight;
   }
 
-  // Load messages from localStorage
-  let localChat = JSON.parse(localStorage.getItem('chat_' + chatCode)) || [];
-  localChat.forEach(displayMessage);
-
-  // Listen for new messages in Firebase
-  const chatRef = db.ref('chats/' + chatCode);
-  chatRef.on('child_added', (snapshot) => {
-    const msg = snapshot.val();
-    if(!localChat.find(m => m.text === msg.text && m.userId === msg.userId)){
-      displayMessage(msg);
-      localChat.push(msg);
-      localStorage.setItem('chat_' + chatCode, JSON.stringify(localChat));
-    }
-  });
-
-  function sendMessage(){
-    const text = messageInput.value.trim();
-    if(!text) return;
-
-    const msg = { text, userId, username };
-    chatRef.push(msg);
-    messageInput.value = '';
-    messageInput.style.height = 'auto';
-  }
-
-  sendBtn.addEventListener('click', sendMessage);
+  // Send message
+  const messageInput = document.getElementById('message-input');
+  document.getElementById('send-btn').addEventListener('click', sendMessage);
 
   messageInput.addEventListener('keydown', (e) => {
-    if(e.key === 'Enter' && !e.shiftKey){
+    if(e.key==='Enter' && !e.shiftKey){
       e.preventDefault();
       sendMessage();
     }
   });
 
   messageInput.addEventListener('input', () => {
-    messageInput.style.height = 'auto';
-    messageInput.style.height = messageInput.scrollHeight + 'px';
+    messageInput.style.height='auto';
+    messageInput.style.height=messageInput.scrollHeight+'px';
+  });
+
+  function sendMessage(){
+    const text = messageInput.value.trim();
+    if(!text) return;
+    const msgRef = db.ref('chats/'+chatCode).push();
+    const msg = { text, userId: currentUserId, username, mobile, timestamp: Date.now(), key: msgRef.key };
+    msgRef.set(msg);
+    messageInput.value='';
+    messageInput.style.height='auto';
+  }
+
+  // Logout
+  logoutBtn.addEventListener('click', () => {
+    localStorage.removeItem('user');
+    location.reload();
   });
 </script>
 
 </body>
-</html>
+  </html>
